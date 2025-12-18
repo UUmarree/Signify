@@ -1,0 +1,51 @@
+import time
+
+class SentenceBuilder:
+    def __init__(self):
+        self.sentence = []
+        self.last_prediction = ""
+        self.last_prediction_time = 0
+        self.threshold_time = 2.0 # If words are > 2 seconds apart, start new sentence
+
+    def update(self, new_prediction, confidence):
+        current_time = time.time()
+        
+        # 1. Filtering: Only accept high confidence predictions
+        if confidence < 0.8:
+            return " ".join(self.sentence)
+
+        # 2. Debouncing: Don't repeat the same word instantly
+        # (e.g., "Pain Pain Pain" -> "Pain")
+        if new_prediction == self.last_prediction and (current_time - self.last_prediction_time) < 1.0:
+            return " ".join(self.sentence)
+
+        # 3. New Word Logic
+        if new_prediction != self.last_prediction:
+            self.sentence.append(new_prediction)
+            self.last_prediction = new_prediction
+            self.last_prediction_time = current_time
+            
+            # Limit sentence length to last 5 words
+            if len(self.sentence) > 5:
+                self.sentence = self.sentence[-5:]
+
+        return " ".join(self.sentence)
+
+# --- SIMULATION ---
+if __name__ == "__main__":
+    builder = SentenceBuilder()
+    
+    # Simulate the AI predicting things over time
+    print("User signs 'Shoulder'...")
+    print("Output:", builder.update("shoulder", 0.95))
+    
+    print("... (0.5 seconds later) ...")
+    time.sleep(0.5)
+    print("Output:", builder.update("shoulder", 0.95)) # Should rely on debounce (no change)
+
+    print("... (User moves hands) ...")
+    
+    print("User signs 'Pain'...")
+    print("Output:", builder.update("pain", 0.92))
+    
+    # RESULT: The output is "shoulder pain"

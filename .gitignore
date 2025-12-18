@@ -1,0 +1,42 @@
+--- HEAVY DATA (Crucial) ---
+
+data/
+MP_Data/
+*.npy
+*.mp4
+*.avi
+
+--- PYTHON ---
+
+pycache/
+*.pyc
+venv/
+env/
+.pytest_cache/
+
+--- WEB APP (Node.js) ---
+
+web_app/node_modules/
+web_app/build/
+web_app/dist/
+web_app/.eslintcache
+
+--- ENVIRONMENT VARIABLES (Security) ---
+
+.env
+.DS_Store
+
+--- LOGS & DEBUGGING ---
+
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+--- LARGE MODELS (Optional) ---
+
+GitHub blocks files larger than 100MB.
+
+If your model is small (~20MB), you can comment these out.
+
+models/*.h5
