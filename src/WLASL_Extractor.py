@@ -23,7 +23,7 @@ except ImportError:
 # --- CONFIGURATION ---
 # Put your JSON file name here (Make sure it is in the Signify root folder)
 JSON_FILE = os.path.join(ROOT_DIR, 'WLASL_v0.3.json') 
-TARGET_GLOSSES = ['fever', 'pain', 'medicine'] 
+TARGET_GLOSSES = [ 'nothing',  'help', 'water', 'pain', 'medicine', 'hello', 'thankyou', 'yes', 'no'] 
 
 # --- MEDIAPIPE SETUP ---
 mp_holistic = mp.solutions.holistic

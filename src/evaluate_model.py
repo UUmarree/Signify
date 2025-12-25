@@ -49,12 +49,12 @@ y = to_categorical(labels).astype(int)
 
 # --- 2. RECREATE SPLIT (Critical for fair testing) ---
 # We use random_state=42 to get the EXACT same 10% test set as training
-X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.30, random_state=42)
 
 print(f"📊 Evaluation Set Size: {len(X_test)} videos")
 
 # --- 3. LOAD MODEL & PREDICT ---
-model_path = os.path.join(MODELS_PATH, 'action.h5')
+model_path = os.path.join(MODELS_PATH, 'best_model.h5')
 if not os.path.exists(model_path):
     print("❌ Model not found. Train it first!")
     sys.exit(1)

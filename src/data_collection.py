@@ -4,7 +4,7 @@ import os
 import mediapipe as mp
 import sys
 
-# --- PATH SETUP (CRITICAL FIX) ---
+# --- PATH SETUP ---
 # This forces the script to find the 'data' folder in the PROJECT ROOT, 
 # no matter where you run this script from.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -51,24 +51,23 @@ def extract_keypoints(results):
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
     return np.concatenate([pose, face, lh, rh])
 
+# --- HELPER: Find next available folder ---
+def get_next_sequence(action_path):
+    if not os.path.exists(action_path):
+        return 0
+    # List all folders that are numbers
+    dirs = [int(f) for f in os.listdir(action_path) if os.path.isdir(os.path.join(action_path, f)) and f.isdigit()]
+    if not dirs:
+        return 0
+    return max(dirs) + 1
+
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
-    print(f"🚀 Starting Data Collection")
+    print(f"🚀 Starting Smart Data Collection")
     print(f"📂 Saving data to Absolute Path: {DATA_PATH}")
+    print(f"🎯 Target: {NO_SEQUENCES} sequences per word")
 
-    # 1. Create folders (With Error Checking)
-    for action in ACTIONS: 
-        for sequence in range(NO_SEQUENCES):
-            folder_path = os.path.join(DATA_PATH, action, str(sequence))
-            try: 
-                os.makedirs(folder_path, exist_ok=True)
-            except Exception as e:
-                print(f"❌ CRITICAL ERROR: Could not create folder {folder_path}")
-                print(f"Reason: {e}")
-                sys.exit(1)
-
-    print("✅ Folders confirmed. Starting Webcam...")
-
+    # Initialize Webcam
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("❌ Error: Could not open webcam.")
@@ -77,7 +76,35 @@ if __name__ == "__main__":
     with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
         
         for action in ACTIONS:
-            for sequence in range(NO_SEQUENCES):
+            action_path = os.path.join(DATA_PATH, action)
+            
+            # 1. Check how many we already have
+            start_sequence = get_next_sequence(action_path)
+            
+            # 2. Logic: Do we need more?
+            if start_sequence >= NO_SEQUENCES:
+                print(f"✅ SKIPPING: '{action}' already has {start_sequence} sequences.")
+                continue
+            
+            needed = NO_SEQUENCES - start_sequence
+            print(f"🎥 RECORDING: '{action}' | Existing: {start_sequence} | Need: {needed}")
+
+            # 3. Create folder if it doesn't exist
+            try: 
+                os.makedirs(action_path, exist_ok=True)
+            except Exception as e:
+                print(f"❌ CRITICAL ERROR: Could not create folder {action_path}")
+                sys.exit(1)
+
+            # 4. Loop from the NEXT available number
+            for sequence in range(start_sequence, NO_SEQUENCES):
+                
+                # Create the specific sequence folder (e.g. fever/30)
+                try: 
+                    os.makedirs(os.path.join(action_path, str(sequence)), exist_ok=True)
+                except:
+                    pass
+
                 for frame_num in range(SEQUENCE_LENGTH):
 
                     ret, frame = cap.read()
@@ -90,7 +117,7 @@ if __name__ == "__main__":
                     
                     # UI LOGIC
                     if frame_num == 0: 
-                        cv2.putText(image, 'STARTING COLLECTION', (120,200), 
+                        cv2.putText(image, 'GET READY', (120,200), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255, 0), 4, cv2.LINE_AA)
                         cv2.putText(image, f'Collecting: {action} | Video #{sequence}', (15,12), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
@@ -103,7 +130,7 @@ if __name__ == "__main__":
                     
                     # SAVE LOGIC (With Error Checking)
                     keypoints = extract_keypoints(results)
-                    npy_path = os.path.join(DATA_PATH, action, str(sequence), str(frame_num))
+                    npy_path = os.path.join(action_path, str(sequence), str(frame_num))
                     try:
                         np.save(npy_path, keypoints)
                     except Exception as e:
@@ -118,4 +145,4 @@ if __name__ == "__main__":
 
     cap.release()
     cv2.destroyAllWindows()
-    print("🎉 All data collected successfully!")
+    print("🎉 All missing data collected!")

@@ -12,15 +12,14 @@ ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
 sys.path.append(ROOT_DIR)
 
 try:
-    from src.config import ACTIONS, SEQUENCE_LENGTH
-    # We save to the SAME processed folder as the webcam/WLASL data
+    # IMPORT NO_SEQUENCES TO PREVENT OVER-COLLECTION
+    from src.config import ACTIONS, SEQUENCE_LENGTH, NO_SEQUENCES
     OUTPUT_PATH = os.path.join(ROOT_DIR, 'data', 'processed')
 except ImportError:
     print("❌ Config not found. Please run from project root.")
     sys.exit(1)
 
 # --- CONFIGURATION ---
-# Updated paths based on your folder structure
 ASL_CITIZEN_ROOT = os.path.join(ROOT_DIR, 'data', 'raw', 'ASL_Citizen')
 RAW_VIDEOS_DIR = os.path.join(ASL_CITIZEN_ROOT, 'videos')
 SPLITS_DIR = os.path.join(ASL_CITIZEN_ROOT, 'splits')
@@ -44,7 +43,6 @@ def extract_keypoints(results):
     return np.concatenate([pose, face, lh, rh])
 
 def get_next_sequence_number(action_path):
-    """Finds the next available folder number so we don't overwrite WLASL/Webcam data"""
     if not os.path.exists(action_path):
         os.makedirs(action_path)
         return 0
@@ -62,16 +60,14 @@ def process_video(video_path, action, sequence_num):
         cap.release()
         return False
 
-    # Logic to get exactly SEQUENCE_LENGTH frames (Resampling)
     if total_frames >= SEQUENCE_LENGTH:
         frame_indices = np.linspace(0, total_frames - 1, SEQUENCE_LENGTH, dtype=int)
     else:
         frame_indices = np.arange(total_frames)
-        if total_frames < 10: # Skip extremely short glitch videos
+        if total_frames < 10: 
             cap.release()
             return False
             
-    # Prepare Output Folder
     save_path = os.path.join(OUTPUT_PATH, action, str(sequence_num))
     os.makedirs(save_path, exist_ok=True)
     
@@ -97,7 +93,6 @@ def process_video(video_path, action, sequence_num):
             
             current_frame += 1
             
-        # PADDING LOGIC
         while saved_count < SEQUENCE_LENGTH:
             npy_path = os.path.join(save_path, str(saved_count))
             np.save(npy_path, keypoints) 
@@ -108,73 +103,63 @@ def process_video(video_path, action, sequence_num):
 
 def main():
     print(f"🚀 Processing ASL Citizen Dataset...")
-    print(f"📂 Looking for CSVs in: {SPLITS_DIR}")
-    print(f"📂 Looking for Videos in: {RAW_VIDEOS_DIR}")
+    print(f"🎯 Target Cap: {NO_SEQUENCES} videos per word")
     
     if not os.path.exists(SPLITS_DIR):
         print("❌ Splits folder not found.")
         return
 
-    # 1. Load ALL CSVs found in the splits folder
+    # 1. Load CSVs
     all_csvs = glob.glob(os.path.join(SPLITS_DIR, "*.csv"))
-    if not all_csvs:
-        print("❌ No CSV files found in splits folder.")
-        return
+    if not all_csvs: return
         
-    print(f"   Found {len(all_csvs)} CSV files. Combining them...")
     df_list = []
     for f in all_csvs:
-        try:
-            df_list.append(pd.read_csv(f))
-        except:
-            print(f"   ⚠️ Could not read {f}, skipping.")
+        try: df_list.append(pd.read_csv(f))
+        except: pass
     
-    if not df_list:
-        return
-        
+    if not df_list: return
     df = pd.concat(df_list, ignore_index=True)
 
-    # 2. Check for 'Gloss' column
-    if 'Gloss' not in df.columns:
-        print(f"⚠️ Columns found: {df.columns}")
-        print("Error: Could not find 'Gloss' column. Check your CSV format.")
-        return
+    if 'Gloss' not in df.columns: return
 
-    # 3. Filter for OUR words only
+    # 2. Filter
     target_actions = [a.lower() for a in ACTIONS]
-    
     df['Gloss_Lower'] = df['Gloss'].astype(str).str.lower()
     filtered_df = df[df['Gloss_Lower'].isin(target_actions)]
     
-    print(f"🎯 Found {len(filtered_df)} videos matching your vocabulary: {ACTIONS}")
+    print(f"   Found {len(filtered_df)} candidate videos.")
 
-    # 4. Process Loop
+    # 3. Process Loop
     for index, row in filtered_df.iterrows():
         gloss = row['Gloss_Lower']
         filename = row['Video file']
         
-        # Match case with our config ACTIONS
+        # Identify Action
         action_name = next(a for a in ACTIONS if a.lower() == gloss)
+        action_dir = os.path.join(OUTPUT_PATH, action_name)
         
+        # --- CRITICAL FIX: CHECK LIMIT BEFORE PROCESSING ---
+        current_count = get_next_sequence_number(action_dir)
+        if current_count >= NO_SEQUENCES:
+            # We don't print "Skipping" for every single file to keep logs clean
+            # but we assume if one hits the limit, we don't need more of this word
+            continue 
+
         video_path = os.path.join(RAW_VIDEOS_DIR, filename)
-        
         if not os.path.exists(video_path):
             video_path += ".mp4"
             if not os.path.exists(video_path):
-                # print(f"   ⚠️ Video missing: {filename}")
                 continue
         
-        action_dir = os.path.join(OUTPUT_PATH, action_name)
-        sequence_num = get_next_sequence_number(action_dir)
-        
-        print(f"   🎬 Processing '{action_name}' -> Sequence {sequence_num}...")
-        
-        success = process_video(video_path, action_name, sequence_num)
+        print(f"   🎬 Processing '{action_name}' -> Sequence {current_count}...")
+        success = process_video(video_path, action_name, current_count)
         
         if success:
             print(f"      ✅ Saved.")
-        else:
-            print(f"      ❌ Failed.")
+
+    print("\n✅ Processing Complete.")
+    print("   Note: If you didn't see logs for 'fever', it's because you already have enough data.")
 
 if __name__ == "__main__":
     main()
