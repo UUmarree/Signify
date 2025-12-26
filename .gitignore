@@ -39,4 +39,3 @@ GitHub blocks files larger than 100MB.
 
 If your model is small (~20MB), you can comment these out.
 
-models/*.h5
